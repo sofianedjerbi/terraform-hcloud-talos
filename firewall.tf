@@ -10,25 +10,24 @@ data "http" "personal_ipv4" {
   }
 }
 
-data "http" "personal_ipv6" {
+# Uses external to gracefully handle IPv4-only networks
+data "external" "personal_ipv6" {
   count = var.firewall_use_current_ip && var.enable_ipv6 ? 1 : 0
-  url   = "https://ipv6.icanhazip.com"
-
-  retry {
-    attempts     = 3
-    min_delay_ms = 1000
-    max_delay_ms = 2000
-  }
+  program = [
+    "sh", "-c",
+    "ipv6=$(curl -6 -s --connect-timeout 5 https://ipv6.icanhazip.com 2>/dev/null | tr -d '\\n\\r'); printf '{\"ip\":\"%s\"}' \"$ipv6\""
+  ]
 }
 
 locals {
-  # Current IPs list - always includes IPv4, conditionally includes IPv6
+  # Current IPs list - always includes IPv4, conditionally includes IPv6 if available
+  personal_ipv6 = var.firewall_use_current_ip && var.enable_ipv6 ? data.external.personal_ipv6[0].result.ip : ""
   current_ips = var.firewall_use_current_ip ? concat(
     [
       "${chomp(data.http.personal_ipv4[0].response_body)}/32",
     ],
-    var.firewall_use_current_ip && var.enable_ipv6 ? [
-      "${chomp(data.http.personal_ipv6[0].response_body)}/128",
+    local.personal_ipv6 != "" ? [
+      "${local.personal_ipv6}/128",
     ] : []
   ) : []
 
