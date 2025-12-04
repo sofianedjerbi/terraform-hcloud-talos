@@ -135,7 +135,8 @@ resource "hcloud_server" "control_planes" {
   lifecycle {
     ignore_changes = [
       user_data,
-      image
+      image,
+      network[0].alias_ips, # managed by talos vip
     ]
   }
 }
